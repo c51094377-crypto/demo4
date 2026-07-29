@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js GLB Viewer</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; user-select: none; }
+        #ui-container {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10;
+            background: rgba(255, 255, 255, 0.9); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        #status { font-size: 13px; font-weight: bold; color: #333; margin-top: 8px; line-height: 1.5; }
+
+        /* オンライン対戦用 UI スタイル */
+        #online-container {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        #my-peer-id { color: #0066cc; background: #eef5ff; padding: 3px 8px; border-radius: 4px; border: 1px solid #b3d1ff; letter-spacing: 1px; }
+        #target-peer-id { padding: 4px 8px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; outline: none; width: 100px; text-align: center; }
+        #connect-btn { padding: 4px 12px; font-size: 12px; font-weight: bold; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #connect-btn:hover { background-color: #218838; }
+        #conn-status { color: #666; font-size: 12px; }
+
+        /* 機体選択モーダル (A10 / F16) */
+        #aircraft-select-modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background: rgba(10, 15, 20, 0.95);
+            border: 2px solid #00ff66;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.4);
+            color: #ffffff;
+            font-family: sans-serif;
+        }
+        #aircraft-select-modal h2 {
+            margin-top: 0;
+            color: #00ff66;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        .select-btn-group {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        .aircraft-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff66;
+            background-color: transparent;
+            border: 2px solid #00ff66;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .aircraft-btn:hover {
+            background-color: #00ff66;
+            color: #000;
+            box-shadow: 0 0 15px #00ff66;
+        }
+
+        /* STORES MANAGEMENT モニターUIのスタイル */
+        #stores-monitor-ui {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 480px;
+            max-width: 90vw;
+            max-height: 85vh;
+            background-color: rgba(5, 20, 10, 0.92);
+            border: 3px solid #00ff66;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.5), inset 0 0 15px rgba(0, 255, 102, 0.2);
+            z-index: 100;
+            padding: 20px;
+            box-sizing: border-box;
+            color: #00ff66;
+            font-family: 'Courier New', Courier, monospace;
+            overflow-y: auto;
+        }
+
+        #stores-monitor-ui h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 22px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px #00ff66;
+            border-bottom: 2px solid #00ff66;
+            padding-bottom: 8px;
+        }
+
+        .pylon-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .pylon-label {
+            letter-spacing: 1px;
+        }
+
+        .pylon-select {
+            background-color: #031408;
+            color: #00ff66;
+            border: 2px solid #00ff66;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 15px;
+            font-family: inherit;
+            font-weight: bold;
+            outline: none;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 255, 102, 0.3);
+            text-align: center;
+        }
+
+        .pylon-select:hover, .pylon-select:focus {
+            background-color: #00ff66;
+            color: #000;
+            box-shadow: 0 0 10px #00ff66;
+        }
+
+        .pylon-select option {
+            background-color: #031408;
+            color: #00ff66;
+        }
+
+        #close-stores-btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: transparent;
+            color: #00ff66;
+            border: 2px solid #00ff66;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        #close-stores-btn:hover {
+            background-color: #00ff66;
+            color: #000;
+            box-shadow: 0 0 12px #00ff66;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div id="online-container">
+            <span>MY ROOM ID:</span>
+            <span id="my-peer-id">発行中...</span>
+            <input type="text" id="target-peer-id" placeholder="数字IDを入力" pattern="[0-9]*">
+            <button id="connect-btn">決定</button>
+            <span id="conn-status">[未接続]</span>
+        </div>
+
+        <input type="file" id="file-input" accept=".zip,.glb,.gltf">
+        <div id="status">
+            ファイルを選択後、搭乗機体を選択してください。
+        </div>
+    </div>
+    
+    <div id="aircraft-select-modal">
+        <h2>SELECT AIRCRAFT</h2>
+        <div class="select-btn-group">
+            <button class="aircraft-btn" id="btn-select-a10">A-10 (51)</button>
+            <button class="aircraft-btn" id="btn-select-f16">F-16 (61)</button>
+        </div>
+    </div>
+
+    <div id="stores-monitor-ui">
+        <h2>STORES MANAGEMENT</h2>
+        <div id="pylon-list-container"></div>
+        <button id="close-stores-btn">CLOSE MONITOR UI</button>
+    </div>
+
+    <canvas id="canvas3d"></canvas>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // 安全チェッカー
+        function isNumOk(val) { return typeof val === 'number' && !isNaN(val) && isFinite(val); }
+
+        const キャンバス = document.querySelector('#canvas3d');
+        const シーン = new THREE.Scene();
+        シーン.background = new THREE.Color(0x1a1a1a);
+
+        const デフォルトカメラ = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
+        デフォルトカメラ.position.set(0, 1.5, 10);
+        デフォルトカメラ.lookAt(0, 0, 0);
+
+        let カメラリスト = [デフォルトカメラ];
+        let f16Cameras = []; 
+        let a10Cameras = []; 
+        let アクティブカメラ = デフォルトカメラ;
+        let 現在のカメラ番号 = 0;
+        let 現在のモデル = null;
+
+        let selectedAircraftMode = null; // 'A10' または 'F16'
+
+        // ノードグループ参照 (A10: scene_51glb / F16: scene_61glb)
+        let scene51Group = null;
+        let scene61Group = null;
+
+        const レンダラー = new THREE.WebGLRenderer({ canvas: キャンバス, antialias: true, logarithmicDepthBuffer: true });
+        レンダラー.setSize(window.innerWidth, window.innerHeight);
+        レンダラー.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        レンダラー.toneMapping = THREE.ACESFilmicToneMapping;
+        レンダラー.toneMappingExposure = 1.0;
+
+        const _worldY = new THREE.Vector3(0, 1, 0);
+
+        // ライティング
+        const アンビエントライト = new THREE.AmbientLight(0xffffff, 2.5);
+        シーン.add(アンビエントライト);
+        const 平行光源 = new THREE.DirectionalLight(0xffffff, 3.0);
+        平行光源.position.set(10, 20, 15);
+        シーン.add(平行光源);
+
+        // 音声制御
+        let audioContext = null;
+        let audioBuffer = null;
+        let audioSource = null;
+        let isAudioPlaying = false;
+
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        function playGunAudio() {
+            if (!audioBuffer || !audioContext || isAudioPlaying) return;
+            try {
+                audioSource = audioContext.createBufferSource();
+                audioSource.buffer = audioBuffer;
+                audioSource.loop = true;
+                audioSource.connect(audioContext.destination);
+                audioSource.start(0);
+                isAudioPlaying = true;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function stopGunAudio() {
+            if (audioSource && isAudioPlaying) {
+                try {
+                    audioSource.stop();
+                    audioSource.disconnect();
+                } catch (e) {
+                    console.error(e);
+                }
+                audioSource = null;
+                isAudioPlaying = false;
+            }
+        }
+
+        // キー入力状態
+        const キー入力状態 = { 
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+            KeyA: false, KeyD: false, KeyW: false, KeyS: false,
+            KeyQ: false, KeyE: false,
+            RudderLeft: false, RudderRight: false,
+            ShiftLeft: false, ShiftRight: false
+        };
+
+        // GAU8 射撃システム
+        let GAU8_Obj = null;
+        let WinMag_BaseObjs = [];
+        const bulletNames = ['弾頭', '弾頭_1', '弾頭_2', '弾頭_3', '弾頭_4', '弾頭_5', '弾頭_6'];
+        let activeBullets = [];
+        let currentBulletIndex = 0;
+        let lastFireTime = 0;
+        const FIRE_INTERVAL = 15;
+        const BULLET_SPEED = 12.0;
+
+        const prevGauPos = new THREE.Vector3();
+        const gauVelocity = new THREE.Vector3();
+        let isFirstFramePos = true;
+
+        const bulletGeo = new THREE.CylinderGeometry(0.12, 0.12, 5.0, 8);
+        bulletGeo.rotateX(Math.PI / 2);
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+
+        // アニメーション管理 (A10)
+        const ハッチ名一覧 = ['主脚左ハッチ', '主脚右ハッチ', '前脚ハッチ前', '前脚ハッチ後'];
+        const 脚名一覧 = ['主脚右', '主脚左', '前脚'];
+        
+        let アニメーション対象パーツ = [];
+        let アニメーション状態 = 'OPEN';
+        let アニメーション開始時間 = 0;
+        const ゼロ回転 = new THREE.Quaternion(0, 0, 0, 1);
+
+        let キャノピーオブジェクト = null;
+        let キャノピーアニメーション状態 = 'OPEN';
+        let キャノピー開始時間 = 0;
+        let キャノピーInitQuat = new THREE.Quaternion();
+        let キャノピーStartQuat = new THREE.Quaternion();
+
+        // A10 操縦面
+        let エルロン左 = null, エルロン右 = null;
+        let 昇降舵左 = null, 昇降舵右 = null;
+        let 方向舵左 = null, 方向舵右 = null;
+        let スロットル右 = null, スロットル左 = null;
+        let スロットル右_InitPos = new THREE.Vector3();
+        let スロットル左_InitPos = new THREE.Vector3();
+        let エンジン右 = null, エンジン左 = null;
+        let 操縦桿 = null;
+
+        let エルロン角度 = 0;
+        let 昇降舵角度 = 0;
+        let 方向舵角度 = 0;
+        let スロットル量 = 0;
+        const 最大スロットル移動量 = 1.465;
+        const A10C_最大舵角 = THREE.MathUtils.degToRad(25);
+        const 操縦桿_最大角度 = THREE.MathUtils.degToRad(25);
+        const 舵面移動速度 = 0.03;
+
+        // F16 パーツオブジェクト定義 (scene_61glb 専用)
+        let f16_左エルロン = null, f16_右エルロン = null;
+        let f16_左水平尾翼 = null, f16_右水平尾翼 = null;
+        let f16_前操縦桿 = null, f16_後操縦桿 = null;
+        let f16_キャノピー = null;
+        let f16_キャノピーInitQuat = new THREE.Quaternion();
+        let f16_キャノピーStartQuat = new THREE.Quaternion();
+        let f16_キャノピーState = 'OPEN'; // 'OPEN', 'CLOSING', 'OPENING', 'STOPPED'
+        let f16_キャノピーStartTime = 0;
+
+        // F16 脚・ドアパーツ
+        let f16_前脚収納A = null, f16_左後脚収納 = null, f16_右後脚収納 = null;
+        let f16_前脚角度 = null, f16_右後脚角度 = null, f16_左後脚角度 = null;
+        let f16_右降着装置扉 = null, f16_前降着装置扉 = null, f16_左降着装置 = null;
+
+        let f16GearParts = [];
+        let f16_GearAnimState = 'OPEN'; // 'OPEN', 'CLOSING_GEAR', 'CLOSING_DOORS', 'STOPPED', 'OPENING_DOORS', 'OPENING_GEAR'
+        let f16_GearAnimStartTime = 0;
+
+        let f16_エルロン角度 = 0;
+        let f16_昇降舵角度 = 0;
+        const F16_最大舵角 = THREE.MathUtils.degToRad(25);
+
+        // モニター・HUD・HMD画面システム
+        let HUDオブジェクト = null;
+        let HUD右オブジェクト = null; 
+        let hudRight有効 = false;    
+
+        let HMD左オブジェクト = null;
+        let HMD右オブジェクト = null;
+        let HMDオブジェクト = null;
+        let 左画面オブジェクト = null;
+        let 右画面オブジェクト = null;
+
+        let 左画面モード = 2;
+        let 右画面モード = 1;
+        let hmd有効 = false;
+
+        const hudCanvas = document.createElement('canvas');
+        hudCanvas.width = 1024; hudCanvas.height = 1024;
+        const hudCtx = hudCanvas.getContext('2d');
+        const hudTexture = new THREE.CanvasTexture(hudCanvas);
+
+        const hmdLeftCanvas = document.createElement('canvas');
+        hmdLeftCanvas.width = 1024; hmdLeftCanvas.height = 1024;
+        const hmdLeftCtx = hmdLeftCanvas.getContext('2d');
+        const hmdLeftTexture = new THREE.CanvasTexture(hmdLeftCanvas);
+
+        const hmdRightCanvas = document.createElement('canvas');
+        hmdRightCanvas.width = 1024; hmdRightCanvas.height = 1024;
+        const hmdRightCtx = hmdRightCanvas.getContext('2d');
+        const hmdRightTexture = new THREE.CanvasTexture(hmdRightCanvas);
+
+        const leftCanvas = document.createElement('canvas');
+        leftCanvas.width = 1024; leftCanvas.height = 1024;
+        const leftCtx = leftCanvas.getContext('2d');
+        const leftTexture = new THREE.CanvasTexture(leftCanvas);
+
+        const rightCanvas = document.createElement('canvas');
+        rightCanvas.width = 1024; rightCanvas.height = 1024;
+        const rightCtx = rightCanvas.getContext('2d');
+        const rightTexture = new THREE.CanvasTexture(rightCanvas);
+
+        function getModeTitle(mode) {
+            const titles = ["FLT CTRL", "AA RADAR", "AG RADAR", "ENG SYS", "DAMAGE", "STORES"];
+            return titles[mode] || "MONITOR";
+        }
+
+        // オンライン対戦 (P2P通信) 変数
+        let peer = null;
+        let activeConn = null;
+        let modelNodeMap = {};
+        let nodeLastState = {};
+        let currentModelBuffer = null;
+        let currentModelFileName = "";
+        const ID_PREFIX = "a10game-num-id-v2-";
+
+        let incomingChunks = [];
+        let expectedTotalChunks = 0;
+        let receivedFileName = "";
+        let lastTelemetryTime = 0;
+        let lastScreenUpdateTime = 0;
+
+        function generateNumericID() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        function initOnlinePeer() {
+            const numId = generateNumericID();
+            peer = new Peer(ID_PREFIX + numId);
+
+            peer.on('open', (id) => {
+                const displayId = id.replace(ID_PREFIX, '');
+                document.getElementById('my-peer-id').innerText = displayId;
+            });
+
+            peer.on('connection', (conn) => {
+                setupConnection(conn);
+            });
+
+            peer.on('error', (err) => {
+                console.error("PeerJS Error:", err);
+                document.getElementById('conn-status').innerText = "[接続エラー]";
+                document.getElementById('conn-status').style.color = "red";
+            });
+        }
+
+        async function parseZipBufferInMemory(zipBuffer) {
+            const zip = await JSZip.loadAsync(zipBuffer);
+            const fileMap = {};
+            let mainModelFileName = null;
+            let audioFile = null;
+
+            for (const filename of Object.keys(zip.files)) {
+                if (zip.files[filename].dir) continue;
+                const file = zip.files[filename];
+
+                if (filename.endsWith('.glb') || filename.endsWith('.gltf')) {
+                    mainModelFileName = filename;
+                } else if (filename.endsWith('.mp3')) {
+                    audioFile = file;
+                } else {
+                    const blob = await file.async('blob');
+                    const blobUrl = URL.createObjectURL(blob);
+                    fileMap[filename] = blobUrl;
+                    const shortName = filename.split('/').pop();
+                    fileMap[shortName] = blobUrl;
+                }
+            }
+
+            if (audioFile) {
+                const audioData = await audioFile.async('arraybuffer');
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioBuffer = await audioContext.decodeAudioData(audioData);
+            }
+
+            if (mainModelFileName) {
+                const modelFile = zip.files[mainModelFileName];
+                const modelBuf = await modelFile.async('arraybuffer');
+
+                const manager = new THREE.LoadingManager();
+                manager.setURLModifier((url) => {
+                    const cleanUrl = url.replace(/^.*[\\\/]/, '');
+                    if (fileMap[cleanUrl]) return fileMap[cleanUrl];
+                    if (fileMap[url]) return fileMap[url];
+                    return url;
+                });
+
+                const loader = new GLTFLoader(manager);
+                loader.parse(modelBuf, '', (gltf) => {
+                    parseAndSetupModel(gltf);
+                });
+            }
+        }
+
+        async function sendModelToOther() {
+            if (activeConn && activeConn.open && currentModelBuffer) {
+                document.getElementById('conn-status').innerText = "[送信中 0%]";
+                document.getElementById('conn-status').style.color = "orange";
+                
+                const chunkSize = 16 * 1024;
+                const totalChunks = Math.ceil(currentModelBuffer.byteLength / chunkSize);
+
+                activeConn.send({
+                    type: 'modelStart',
+                    totalChunks: totalChunks,
+                    fileName: currentModelFileName
+                });
+
+                for (let i = 0; i < totalChunks; i++) {
+                    if (!activeConn || !activeConn.open) break;
+
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, currentModelBuffer.byteLength);
+                    const chunk = currentModelBuffer.slice(start, end);
+
+                    activeConn.send({
+                        type: 'modelChunk',
+                        index: i,
+                        chunk: chunk
+                    });
+
+                    const progress = Math.floor(((i + 1) / totalChunks) * 100);
+                    document.getElementById('conn-status').innerText = `[送信中 ${progress}%]`;
+
+                    if (i % 10 === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+                document.getElementById('conn-status').innerText = "[送信完了!]";
+                document.getElementById('conn-status').style.color = "green";
+            }
+        }
+
+        function setupConnection(conn) {
+            activeConn = conn;
+
+            const onConnectionOpen = () => {
+                document.getElementById('conn-status').innerText = "[接続完了!]";
+                document.getElementById('conn-status').style.color = "green";
+                if (currentModelBuffer) sendModelToOther();
+            };
+
+            if (conn.open) {
+                onConnectionOpen();
+            } else {
+                conn.on('open', onConnectionOpen);
+            }
+
+            activeConn.on('data', async (data) => {
+                if (!data) return;
+
+                if (data.type === 'aircraftSelect') {
+                    const otherSelected = data.mode;
+                    const myAssignedMode = (otherSelected === 'A10') ? 'F16' : 'A10';
+                    setAircraftChoice(myAssignedMode, false);
+                }
+
+                else if (data.type === 'modelStart') {
+                    incomingChunks = new Array(data.totalChunks);
+                    expectedTotalChunks = data.totalChunks;
+                    receivedFileName = data.fileName || 'model.glb';
+                    document.getElementById('conn-status').innerText = `[受信中 0%]`;
+                    document.getElementById('conn-status').style.color = "orange";
+                }
+
+                else if (data.type === 'modelChunk') {
+                    incomingChunks[data.index] = data.chunk;
+                    const receivedCount = incomingChunks.filter(c => c !== undefined).length;
+                    const progress = Math.floor((receivedCount / expectedTotalChunks) * 100);
+                    document.getElementById('conn-status').innerText = `[受信中 ${progress}%]`;
+
+                    if (receivedCount === expectedTotalChunks) {
+                        document.getElementById('conn-status').innerText = "[モデル構築中...]";
+                        
+                        let totalByteLength = 0;
+                        incomingChunks.forEach(c => {
+                            if (c) totalByteLength += (c.byteLength || c.length || 0);
+                        });
+
+                        const mergedBuffer = new Uint8Array(totalByteLength);
+                        let offset = 0;
+                        incomingChunks.forEach(c => {
+                            if (c) {
+                                const u8 = new Uint8Array(c);
+                                mergedBuffer.set(u8, offset);
+                                offset += u8.byteLength;
+                            }
+                        });
+
+                        resetStateForNewModel();
+                        const buffer = mergedBuffer.buffer;
+
+                        if (receivedFileName.endsWith('.zip')) {
+                            await parseZipBufferInMemory(buffer);
+                        } else {
+                            const loader = new GLTFLoader();
+                            loader.parse(buffer, '', (gltf) => {
+                                parseAndSetupModel(gltf);
+                            });
+                        }
+                        document.getElementById('conn-status').innerText = "[同期完了!]";
+                        document.getElementById('conn-status').style.color = "green";
+                    }
+                } 
+
+                else if (data.type === 'telemetry') {
+                    if (data.nodes) {
+                        for (let name in data.nodes) {
+                            const node = modelNodeMap[name];
+                            if (node) {
+                                const t = data.nodes[name];
+                                if (t.p) node.position.set(t.p.x, t.p.y, t.p.z);
+                                if (t.q) node.quaternion.set(t.q.x, t.q.y, t.q.z, t.q.w);
+                                if (t.s) node.scale.set(t.s.x, t.s.y, t.s.z);
+                                if (t.v !== undefined) node.visible = t.v;
+                            }
+                        }
+                    }
+                }
+            });
+
+            activeConn.on('close', () => {
+                document.getElementById('conn-status').innerText = "[切断されました]";
+                document.getElementById('conn-status').style.color = "#666";
+            });
+        }
+
+        document.getElementById('connect-btn').addEventListener('click', () => {
+            const targetNumId = document.getElementById('target-peer-id').value.trim();
+            if (targetNumId && peer) {
+                document.getElementById('conn-status').innerText = "[接続中...]";
+                document.getElementById('conn-status').style.color = "orange";
+                const fullPeerId = ID_PREFIX + targetNumId;
+                const conn = peer.connect(fullPeerId, { reliable: true });
+                setupConnection(conn);
+            }
+        });
+
+        initOnlinePeer();
+
+        function showAircraftSelectModal() {
+            document.getElementById('aircraft-select-modal').style.display = 'block';
+        }
+
+        function setAircraftChoice(mode, shouldBroadcast = true) {
+            selectedAircraftMode = mode;
+            document.getElementById('aircraft-select-modal').style.display = 'none';
+
+            if (mode === 'F16') {
+                カメラリスト = f16Cameras.length > 0 ? f16Cameras : [デフォルトカメラ];
+            } else {
+                カメラリスト = a10Cameras.length > 0 ? a10Cameras : [デフォルトカメラ];
+            }
+
+            現在のカメラ番号 = 0;
+            アクティブカメラ = カメラリスト[0];
+            カメラの最適化(アクティブカメラ);
+            updateStatusText();
+
+            if (shouldBroadcast && activeConn && activeConn.open) {
+                activeConn.send({
+                    type: 'aircraftSelect',
+                    mode: mode
+                });
+            }
+        }
+
+        document.getElementById('btn-select-a10').addEventListener('click', () => setAircraftChoice('A10', true));
+        document.getElementById('btn-select-f16').addEventListener('click', () => setAircraftChoice('F16', true));
+
+        // --- HUD 描画 ---
+        function drawHUD() {
+            hudCtx.clearRect(0, 0, 1024, 1024);
+
+            hudCtx.fillStyle = '#00ff44';
+            hudCtx.strokeStyle = '#00ff44';
+            hudCtx.lineWidth = 4;
+            hudCtx.font = 'bold 30px monospace';
+
+            const now = Date.now() * 0.002;
+            const pitchOffset = Math.sin(now) * 25;
+
+            hudCtx.fillText("050       060       070", 330, 160);
+            for (let x = 330; x <= 690; x += 30) {
+                hudCtx.beginPath();
+                hudCtx.moveTo(x, 175);
+                hudCtx.lineTo(x, 195);
+                hudCtx.stroke();
+            }
+            hudCtx.beginPath();
+            hudCtx.moveTo(512, 195);
+            hudCtx.lineTo(502, 215);
+            hudCtx.lineTo(522, 215);
+            hudCtx.closePath();
+            hudCtx.stroke();
+
+            const py1 = 280 + pitchOffset;
+            hudCtx.fillText("5", 350, py1); hudCtx.fillText("5", 640, py1);
+            hudCtx.beginPath();
+            hudCtx.moveTo(380, py1 - 8); hudCtx.lineTo(440, py1 - 8); hudCtx.lineTo(440, py1 + 15);
+            hudCtx.moveTo(640, py1 - 8); hudCtx.lineTo(580, py1 - 8); hudCtx.lineTo(580, py1 + 15);
+            hudCtx.stroke();
+
+            hudCtx.font = 'bold 34px monospace';
+            hudCtx.fillText("W", 497, 365);
+
+            const horizonY = 460 + pitchOffset;
+            hudCtx.beginPath();
+            hudCtx.moveTo(260, horizonY); hudCtx.lineTo(470, horizonY); hudCtx.lineTo(470, 480 + pitchOffset);
+            hudCtx.moveTo(764, horizonY); hudCtx.lineTo(554, horizonY); hudCtx.lineTo(554, 480 + pitchOffset);
+            hudCtx.stroke();
+            hudCtx.beginPath();
+            hudCtx.arc(512, horizonY, 12, 0, Math.PI * 2);
+            hudCtx.stroke();
+
+            hudCtx.font = 'bold 32px monospace';
+            hudCtx.strokeRect(300, 370, 110, 48);
+            hudCtx.fillText("233", 320, 406);
+
+            hudCtx.fillText("-470", 720, 360);
+            hudCtx.strokeRect(700, 370, 125, 48);
+            hudCtx.fillText("8820", 710, 406);
+
+            hudCtx.font = 'bold 28px monospace';
+            hudCtx.fillText("α  1.1", 260, 500);
+            hudCtx.fillText("M  0.3", 260, 535);
+            hudCtx.fillText("G  0.4", 260, 570);
+
+            hudCtx.fillText("ATC", 770, 580);
+            hudCtx.fillText("CPL SEQ1", 720, 620);
+            hudCtx.fillText("4.5STL", 740, 660);
+
+            hudCtx.fillText("14:21:19Z", 260, 680);
+
+            const py2 = 680 + pitchOffset;
+            hudCtx.fillText("5", 350, py2); hudCtx.fillText("5", 640, py2);
+            hudCtx.beginPath();
+            hudCtx.moveTo(380, py2); hudCtx.lineTo(440, py2);
+            hudCtx.moveTo(640, py2); hudCtx.lineTo(580, py2);
+            hudCtx.stroke();
+
+            const cx = 512, cy = 880;
+            hudCtx.beginPath();
+            hudCtx.arc(cx, cy, 180, Math.PI * 1.2, Math.PI * 1.8);
+            hudCtx.stroke();
+
+            for (let a = 1.25; a <= 1.75; a += 0.05) {
+                const ax = cx + Math.cos(Math.PI * a) * 180;
+                const ay = cy + Math.sin(Math.PI * a) * 180;
+                const ax2 = cx + Math.cos(Math.PI * a) * 162;
+                const ay2 = cy + Math.sin(Math.PI * a) * 162;
+                hudCtx.beginPath(); hudCtx.moveTo(ax, ay); hudCtx.lineTo(ax2, ay2); hudCtx.stroke();
+            }
+
+            hudCtx.beginPath();
+            hudCtx.moveTo(512, 700); hudCtx.lineTo(502, 720); hudCtx.lineTo(522, 720); hudCtx.closePath();
+            hudCtx.stroke();
+
+            hudTexture.needsUpdate = true;
+        }
+
+        // --- HMD 描画 ---
+        function drawHMD() {
+            if (!hmd有効) return;
+
+            hmdLeftCtx.clearRect(0, 0, 1024, 1024);
+            hmdRightCtx.clearRect(0, 0, 1024, 1024);
+
+            const ailL = (エルロン角度 / A10C_最大舵角 * 100).toFixed(0);
+            const elev = (昇降舵角度 / A10C_最大舵角 * 100).toFixed(0);
+
+            hmdLeftCtx.fillStyle = '#00ffff';
+            hmdLeftCtx.strokeStyle = '#00ffff';
+            hmdLeftCtx.lineWidth = 6;
+            hmdLeftCtx.font = 'bold 42px monospace';
+
+            hmdLeftCtx.strokeRect(80, 120, 864, 780);
+            hmdLeftCtx.fillText(`[ L: ${getModeTitle(左画面モード)} ]`, 120, 210);
+
+            hmdLeftCtx.font = 'bold 36px monospace';
+            hmdLeftCtx.fillText(`AIL  : ${ailL}%`, 120, 310);
+            hmdLeftCtx.fillText(`ELEV : ${elev}%`, 120, 390);
+
+            if (左画面モード === 1) {
+                hmdLeftCtx.fillText("TGT  : 01 [HOSTILE]", 120, 490);
+                hmdLeftCtx.fillText("RNG  : 14.2 NM", 120, 570);
+            } else if (左画面モード === 2) {
+                hmdLeftCtx.fillText("TGT  : SAM-SITE", 120, 490);
+                hmdLeftCtx.fillText("MODE : B-SCAN", 120, 570);
+            } else if (左画面モード === 3) {
+                const currentRpm = (50.0 + スロットル量 * 45.0).toFixed(1);
+                hmdLeftCtx.fillText(`ENG1 : ${currentRpm} %`, 120, 490);
+                hmdLeftCtx.fillText("FUEL : 10,800 LBS", 120, 570);
+            } else if (左画面モード === 5) {
+                hmdLeftCtx.fillText("WEAP : GAU-8 30MM", 120, 490);
+                hmdLeftCtx.fillText("STAT : READY", 120, 570);
+            } else {
+                hmdLeftCtx.fillText("SYS  : OPERATIONAL", 120, 490);
+                hmdLeftCtx.fillText("HYD  : 3000 PSI", 120, 570);
+            }
+
+            hmdRightCtx.fillStyle = '#00ffff';
+            hmdRightCtx.strokeStyle = '#00ffff';
+            hmdRightCtx.lineWidth = 6;
+            hmdRightCtx.font = 'bold 42px monospace';
+
+            hmdRightCtx.strokeRect(80, 120, 864, 780);
+            hmdRightCtx.fillText(`[ R: ${getModeTitle(右画面モード)} ]`, 120, 210);
+
+            hmdRightCtx.font = 'bold 36px monospace';
+            if (右画面モード === 0) {
+                hmdRightCtx.fillText(`AIL  : ${ailL}%`, 120, 310);
+                hmdRightCtx.fillText(`ELEV : ${elev}%`, 120, 390);
+                hmdRightCtx.fillText("FLAP : RETRACTED", 120, 490);
+            } else if (右画面モード === 1) {
+                hmdRightCtx.fillText("AA TGT : 01 [HOSTILE]", 120, 310);
+                hmdRightCtx.fillText("ALT    : 24,000 FT", 120, 390);
+                hmdRightCtx.fillText("SPD    : 420 KT", 120, 490);
+            } else if (右画面モード === 3) {
+                const currentRpm = (50.0 + スロットル量 * 45.0).toFixed(1);
+                hmdRightCtx.fillText(`RPM  : ${currentRpm} / ${currentRpm} %`, 120, 310);
+                hmdRightCtx.fillText("TEMP : 625 / 622 °C", 120, 390);
+                hmdRightCtx.fillText("FUEL : 10,800 LBS", 120, 490);
+            } else if (右画面モード === 4) {
+                hmdRightCtx.fillText("DIAG : NO DAMAGE", 120, 310);
+                hmdRightCtx.fillText("HLTH : 100 %", 120, 390);
+            } else if (右画面モード === 5) {
+                hmdRightCtx.fillText("GUN  : GAU-8 (1150)", 120, 310);
+                hmdRightCtx.fillText("ARM  : MASTER ARMED", 120, 390);
+            } else {
+                hmdRightCtx.fillText("SCAN : SECTOR AG", 120, 310);
+                hmdRightCtx.fillText("TGT  : SAM-SITE", 120, 390);
+            }
+
+            hmdLeftTexture.needsUpdate = true;
+            hmdRightTexture.needsUpdate = true;
+        }
+
+        // --- MFD 描画 ---
+        function drawMFDPage(ctx, mode) {
+            ctx.fillStyle = '#030d05'; ctx.fillRect(0, 0, 1024, 1024);
+            ctx.strokeStyle = '#00ff66'; ctx.fillStyle = '#00ff66';
+            ctx.lineWidth = 4; ctx.font = 'bold 42px monospace';
+
+            const time = Date.now() * 0.002;
+
+            switch(mode) {
+                case 0:
+                    ctx.fillText("--- FLT CTRL SURFACES ---", 210, 80);
+
+                    const ailL = (エルロン角度 / A10C_最大舵角 * 100).toFixed(0);
+                    const ailR = (-エルロン角度 / A10C_最大舵角 * 100).toFixed(0);
+                    const elev = (昇降舵角度 / A10C_最大舵角 * 100).toFixed(0);
+                    const rud = (方向舵角度 / A10C_最大舵角 * 100).toFixed(0);
+
+                    ctx.fillText(`AILERON L : ${ailL > 0 ? '+' : ''}${ailL}%`, 100, 220);
+                    ctx.strokeRect(550, 185, 360, 40);
+                    ctx.fillRect(730, 185, ailL * 1.8, 40);
+
+                    ctx.fillText(`AILERON R : ${ailR > 0 ? '+' : ''}${ailR}%`, 100, 340);
+                    ctx.strokeRect(550, 305, 360, 40);
+                    ctx.fillRect(730, 305, ailR * 1.8, 40);
+
+                    ctx.fillText(`ELEVATOR  : ${elev > 0 ? '+' : ''}${elev}%`, 100, 460);
+                    ctx.strokeRect(550, 425, 360, 40);
+                    ctx.fillRect(730, 425, elev * 1.8, 40);
+
+                    ctx.fillText(`RUDDER    : ${rud > 0 ? '+' : ''}${rud}%`, 100, 580);
+                    ctx.strokeRect(550, 545, 360, 40);
+                    ctx.fillRect(730, 545, rud * 1.8, 40);
+
+                    ctx.font = 'bold 36px monospace';
+                    ctx.fillText("FLAPS SYSTEM : RETRACTED (0°)", 100, 740);
+                    ctx.fillText("SPEED BRAKE  : CLOSED (0%)", 100, 820);
+                    ctx.fillText("HYDRAULIC    : 3,000 PSI [NORM]", 100, 900);
+                    break;
+
+                case 1:
+                    ctx.fillStyle = '#010903'; ctx.fillRect(0, 0, 1024, 1024);
+                    
+                    ctx.fillStyle = '#00ff66'; ctx.font = 'bold 28px monospace';
+                    ctx.fillText("OPR", 130, 170); ctx.fillText("C11", 130, 200);
+                    ctx.fillText("RWR", 130, 260); ctx.fillText("ATTK", 130, 290);
+                    ctx.fillText("ECCM", 130, 390);
+                    ctx.fillText("NORM", 130, 580);
+                    ctx.fillText("LDF", 130, 710);
+                    
+                    ctx.fillText("RAID", 840, 370);
+                    ctx.strokeRect(830, 385, 90, 35);
+                    ctx.fillText("LOOK", 840, 412);
+                    ctx.fillText("COLOR", 830, 480);
+                    ctx.fillText("MSI", 850, 570);
+                    ctx.fillText("LTWS", 840, 680);
+                    ctx.fillText("0", 820, 740);
+
+                    ctx.fillText("000°", 480, 170);
+                    ctx.fillText("40", 815, 200);
+                    ctx.fillText("C 2", 760, 200);
+                    ctx.fillText("32", 725, 140);
+                    
+                    ctx.fillText("BRA", 365, 825);
+                    ctx.fillText("3441", 475, 825);
+                    ctx.strokeRect(555, 795, 125, 40);
+                    ctx.fillText("DCLTR 2", 565, 825);
+                    ctx.fillText("DATA", 705, 825);
+
+                    ctx.fillText("M 0.99", 160, 810);
+                    ctx.fillText("BRA 324°/28.4", 240, 725);
+                    ctx.fillText("24310", 700, 780);
+
+                    ctx.strokeStyle = '#00ff66'; ctx.lineWidth = 3;
+                    ctx.strokeRect(200, 210, 600, 560);
+
+                    ctx.beginPath();
+                    ctx.moveTo(435, 210); ctx.lineTo(435, 770);
+                    ctx.stroke();
+
+                    for (let y = 260; y <= 720; y += 100) {
+                        ctx.beginPath(); ctx.moveTo(200, y); ctx.lineTo(220, y); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(780, y); ctx.lineTo(800, y); ctx.stroke();
+                    }
+
+                    const sweepX = 200 + ((Math.sin(time * 2) + 1) / 2) * 600;
+                    ctx.strokeStyle = 'rgba(0, 255, 102, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(sweepX, 210); ctx.lineTo(sweepX, 770); ctx.stroke();
+
+                    ctx.fillStyle = '#ffe600'; ctx.strokeStyle = '#ffe600'; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(450, 230); ctx.lineTo(470, 250); ctx.lineTo(430, 250); ctx.closePath(); ctx.stroke();
+                    ctx.font = 'bold 20px monospace'; ctx.fillText("29", 440, 245);
+
+                    ctx.beginPath();
+                    ctx.moveTo(480, 230); ctx.lineTo(500, 250); ctx.lineTo(460, 250); ctx.closePath(); ctx.stroke();
+                    ctx.fillText("29", 470, 245);
+
+                    ctx.strokeStyle = '#00ff66'; ctx.fillStyle = '#00ff66';
+                    ctx.strokeRect(330, 530, 40, 50);
+                    ctx.font = 'bold 22px monospace';
+                    ctx.fillText("31", 340, 520);
+                    ctx.fillText("17", 340, 600);
+
+                    ctx.fillRect(450, 565, 30, 15);
+
+                    ctx.beginPath();
+                    ctx.moveTo(475, 410); ctx.lineTo(475, 450);
+                    ctx.moveTo(455, 430); ctx.lineTo(495, 430);
+                    ctx.stroke();
+
+                    ctx.beginPath(); ctx.moveTo(200, 470); ctx.lineTo(240, 470); ctx.lineTo(230, 460); ctx.stroke();
+                    break;
+
+                case 2:
+                    ctx.fillStyle = '#010c04'; ctx.fillRect(0, 0, 1024, 1024);
+
+                    ctx.fillStyle = '#00ff66'; ctx.font = 'bold 28px monospace';
+                    ctx.fillText("OPR", 150, 230);
+                    ctx.fillText("MAP", 140, 320);
+                    ctx.strokeRect(130, 365, 75, 35);
+                    ctx.fillText("ECCM", 135, 390);
+                    ctx.fillText("AIR", 150, 480);
+
+                    ctx.fillText("EXP1", 210, 210);
+                    ctx.fillText("EXP2", 320, 210);
+                    ctx.fillText("EXP3", 430, 210);
+                    ctx.fillText("PEN", 515, 210);
+                    ctx.strokeRect(565, 185, 55, 35);
+                    ctx.fillText("FAN", 570, 210);
+
+                    ctx.fillText("40", 725, 250);
+                    ctx.fillText("↑", 745, 295);
+                    ctx.fillText("↓", 745, 375);
+                    ctx.fillText("FRZ", 735, 460);
+                    ctx.fillText("RSET", 730, 550);
+                    ctx.fillText("STL", 735, 640);
+                    ctx.fillText("0", 715, 710);
+
+                    ctx.fillText("333", 205, 740);
+                    ctx.fillText("M 0.55", 165, 765);
+                    ctx.fillText("120°", 315, 775);
+                    ctx.fillText("5", 435, 745);
+                    ctx.fillText("2023", 420, 770);
+                    ctx.fillText("CHAN", 520, 765);
+                    ctx.fillText("5560", 620, 730);
+                    ctx.fillText("DATA", 620, 765);
+                    ctx.fillText("003°", 435, 240);
+
+                    const cxAG = 450, cyAG = 700, rMaxAG = 440;
+                    
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(cxAG, cyAG);
+                    ctx.arc(cxAG, cyAG, rMaxAG, Math.PI * 1.22, Math.PI * 1.78);
+                    ctx.closePath();
+                    ctx.clip();
+
+                    const terGrad = ctx.createRadialGradient(cxAG, cyAG, 50, cxAG, cyAG, rMaxAG);
+                    terGrad.addColorStop(0, 'rgba(0, 40, 10, 0.2)');
+                    terGrad.addColorStop(0.5, 'rgba(0, 220, 70, 0.65)');
+                    terGrad.addColorStop(0.85, 'rgba(0, 180, 50, 0.85)');
+                    terGrad.addColorStop(1, 'rgba(0, 255, 80, 0.1)');
+                    ctx.fillStyle = terGrad;
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(3, 15, 5, 0.85)';
+                    ctx.beginPath();
+                    ctx.arc(cxAG - 60, cyAG - 220, 140, 0, Math.PI * 2);
+                    ctx.arc(cxAG + 180, cyAG - 300, 120, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+
+                    ctx.strokeStyle = '#00ff66'; ctx.lineWidth = 2;
+                    for (let r = 120; r <= rMaxAG; r += 110) {
+                        ctx.beginPath();
+                        ctx.arc(cxAG, cyAG, r, Math.PI * 1.22, Math.PI * 1.78);
+                        ctx.stroke();
+                    }
+
+                    const angles = [1.22, 1.36, 1.5, 1.64, 1.78];
+                    angles.forEach(ang => {
+                        ctx.beginPath();
+                        ctx.moveTo(cxAG, cyAG);
+                        ctx.lineTo(cxAG + Math.cos(Math.PI * ang) * rMaxAG, cyAG + Math.sin(Math.PI * ang) * rMaxAG);
+                        ctx.stroke();
+                    });
+
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(cxAG, cyAG, 310, Math.PI * 1.42, Math.PI * 1.58);
+                    ctx.arc(cxAG, cyAG, 230, Math.PI * 1.58, Math.PI * 1.42, true);
+                    ctx.closePath();
+                    ctx.stroke();
+
+                    const sweepAngleAG = Math.PI * 1.5 + Math.sin(time * 2.5) * 0.85;
+                    ctx.strokeStyle = '#00ff99'; ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(cxAG, cyAG);
+                    ctx.lineTo(cxAG + Math.cos(sweepAngleAG) * rMaxAG, cyAG + Math.sin(sweepAngleAG) * rMaxAG);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = '#00ff66'; ctx.lineWidth = 2;
+                    ctx.strokeRect(730, 210, 18, 18);
+                    break;
+
+                case 3:
+                    ctx.fillText("--- ENGINE & FUEL MONITOR ---", 180, 80);
+                    const baseRpm = 50.0 + スロットル量 * 45.0;
+                    const rpm1 = (baseRpm + Math.sin(time) * 0.3).toFixed(1);
+                    const rpm2 = (baseRpm + Math.cos(time) * 0.3).toFixed(1);
+                    const temp1 = (550 + スロットル量 * 200 + Math.sin(time * 1.5) * 3).toFixed(0);
+                    const temp2 = (548 + スロットル量 * 200 + Math.cos(time * 1.5) * 3).toFixed(0);
+
+                    ctx.fillText(`ENG 1 FAN RPM : ${rpm1} %`, 100, 200);
+                    ctx.strokeRect(580, 165, 340, 35);
+                    ctx.fillRect(580, 165, (rpm1 / 100) * 340, 35);
+
+                    ctx.fillText(`ENG 2 FAN RPM : ${rpm2} %`, 100, 300);
+                    ctx.strokeRect(580, 265, 340, 35);
+                    ctx.fillRect(580, 265, (rpm2 / 100) * 340, 35);
+
+                    ctx.fillText(`ENG 1 ITT TEMP: ${temp1} °C`, 100, 420);
+                    ctx.fillText(`ENG 2 ITT TEMP: ${temp2} °C`, 100, 500);
+
+                    ctx.fillText("FUEL FLOW L   : 2,450 PPH", 100, 620);
+                    ctx.fillText("FUEL FLOW R   : 2,480 PPH", 100, 700);
+                    ctx.fillText("TOTAL FUEL    : 10,800 LBS", 100, 820);
+                    ctx.fillText("APU STATUS    : OFF / NORM", 100, 900);
+                    break;
+
+                case 4:
+                    ctx.fillText("--- AIRCRAFT DAMAGE / DIAG ---", 150, 80);
+                    ctx.fillStyle = '#00ff66';
+                    ctx.fillText("SYSTEM STATUS: 100% OPERATIONAL", 120, 160);
+
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(480, 280, 64, 450);
+                    ctx.strokeRect(180, 420, 660, 80);
+                    ctx.strokeRect(300, 680, 420, 40);
+                    ctx.strokeRect(280, 640, 40, 120);
+                    ctx.strokeRect(704, 640, 40, 120);
+
+                    ctx.font = 'bold 36px monospace';
+                    ctx.fillText("NO DAMAGE", 430, 470);
+                    ctx.fillText("L-WING: OK", 120, 880);
+                    ctx.fillText("R-WING: OK", 680, 880);
+                    ctx.fillText("ENG L/R: OK", 400, 940);
+                    break;
+
+                case 5:
+                    ctx.fillText("--- STORES MANAGEMENT ---", 200, 80);
+                    ctx.font = 'bold 36px monospace';
+                    ctx.fillText("[PYLON 01] AIM-9L SIDEWINDER   [RDY]", 80, 190);
+                    ctx.fillText("[PYLON 02] AGM-65D MAVERICK    [RDY]", 80, 270);
+                    ctx.fillText("[PYLON 03] GBU-12 PAVEWAY II   [ARM]", 80, 350);
+                    ctx.fillText("[PYLON 04] LAU-68 ROCKET POD   [RDY]", 80, 430);
+                    ctx.fillText("[PYLON 05] MK-82 500LB BOMB    [ARM]", 80, 510);
+                    ctx.fillText("[CANNON  ] GAU-8 30MM CANNON  [1150 RD]", 80, 620);
+
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.fillText("MASTER ARM : ARMED", 80, 780);
+                    ctx.fillText("GUN PAC    : READY", 80, 850);
+                    break;
+            }
+        }
+
+        function updateScreens() {
+            drawHUD();
+            drawHMD();
+            drawMFDPage(leftCtx, 左画面モード);
+            drawMFDPage(rightCtx, 右画面モード);
+            leftTexture.needsUpdate = true;
+            rightTexture.needsUpdate = true;
+        }
+
+        function カメラの最適化(カメラ) {
+            if (カメラ && カメラ.isCamera) {
+                const aspect = window.innerWidth / window.innerHeight;
+                カメラ.aspect = isNumOk(aspect) && aspect > 0 ? aspect : 1.0;
+                カメラ.near = 0.01;
+                カメラ.far = 10000;
+                カメラ.updateProjectionMatrix();
+            }
+        }
+        カメラの最適化(アクティブカメラ);
+
+        function resetStateForNewModel() {
+            if (現在のモデル) シーン.remove(現在のモデル);
+            カメラリスト = []; f16Cameras = []; a10Cameras = []; 現在のカメラ番号 = 0; アクティブカメラ = null;
+            selectedAircraftMode = null;
+            scene51Group = null; scene61Group = null;
+            アニメーション対象パーツ = [];
+            アニメーション状態 = 'OPEN';
+            キャノピーオブジェクト = null;
+            キャノピーアニメーション状態 = 'OPEN';
+            エルロン左 = null; エルロン右 = null;
+            昇降舵左 = null; 昇降舵右 = null;
+            方向舵左 = null; 方向舵右 = null;
+            スロットル右 = null; スロットル左 = null;
+            エンジン右 = null; エンジン左 = null;
+            操縦桿 = null;
+            スロットル量 = 0;
+
+            // F16変数のリセット
+            f16_左エルロン = null; f16_右エルロン = null;
+            f16_左水平尾翼 = null; f16_右水平尾翼 = null;
+            f16_前操縦桿 = null; f16_後操縦桿 = null;
+            f16_キャノピー = null;
+            f16_前脚収納A = null; f16_左後脚収納 = null; f16_右後脚収納 = null;
+            f16_前脚角度 = null; f16_右後脚角度 = null; f16_左後脚角度 = null;
+            f16_右降着装置扉 = null; f16_前降着装置扉 = null; f16_左降着装置 = null;
+            f16GearParts = [];
+            f16_GearAnimState = 'OPEN';
+            f16_キャノピーState = 'OPEN';
+            f16_エルロン角度 = 0; f16_昇降舵角度 = 0;
+
+            HUDオブジェクト = null; HUD右オブジェクト = null; hudRight有効 = false;
+            HMD左オブジェクト = null; HMD右オブジェクト = null; HMDオブジェクト = null; 左画面オブジェクト = null; 右画面オブジェクト = null;
+            GAU8_Obj = null; WinMag_BaseObjs = []; activeBullets = []; currentBulletIndex = 0;
+            isFirstFramePos = true;
+            エルロン角度 = 0; 昇降舵角度 = 0; 方向舵角度 = 0;
+            modelNodeMap = {};
+            nodeLastState = {};
+            stopGunAudio();
+        }
+
+        document.getElementById('file-input').addEventListener('change', async function(イベント) {
+            const ファイル = イベント.target.files[0];
+            if (!ファイル) return;
+
+            initAudio();
+            resetStateForNewModel();
+
+            currentModelFileName = ファイル.name;
+            const loadedFileBuffer = await ファイル.arrayBuffer();
+            currentModelBuffer = loadedFileBuffer;
+
+            sendModelToOther();
+
+            if (ファイル.name.endsWith('.zip')) {
+                await parseZipBufferInMemory(loadedFileBuffer);
+            } else {
+                const loader = new GLTFLoader();
+                loader.parse(loadedFileBuffer, '', (gltf) => {
+                    parseAndSetupModel(gltf);
+                });
+            }
+        });
+
+        function parseAndSetupModel(読み込みデータ) {
+            現在のモデル = 読み込みデータ.scene;
+            シーン.add(現在のモデル);
+
+            アニメーション対象パーツ = [];
+            WinMag_BaseObjs = new Array(7).fill(null);
+            f16Cameras = [];
+            a10Cameras = [];
+            modelNodeMap = {};
+            nodeLastState = {};
+
+            const 全パーツ名 = [...ハッチ名一覧, ...脚名一覧];
+
+            // F16指定ボーン・パーツ判定ヘルパー (グループ名+ボーン名 または 内包パーツ名)
+            function isF16Part(child, boneName) {
+                const name = child.name;
+                const fullF16Name = `scene_61glb_${boneName}`;
+                const f16GroupMatch = child.parent && (child.parent.name === 'scene_61glb' || child.parent.name === '61');
+                return name === boneName || name === fullF16Name || (f16GroupMatch && name.includes(boneName));
+            }
+
+            現在のモデル.traverse((child) => {
+                if (child.name) {
+                    modelNodeMap[child.name] = child;
+                }
+
+                if (child.name === 'scene_51glb' || child.name === '51') scene51Group = child;
+                if (child.name === 'scene_61glb' || child.name === '61') scene61Group = child;
+
+                // カメラの分類
+                if (child.isCamera) {
+                    child.rotation.order = 'YXZ';
+                    if (child.name === 'PerspectiveCamera_7' || child.name === 'PerspectiveCamera_2_1') {
+                        f16Cameras.push(child);
+                    } else {
+                        a10Cameras.push(child);
+                    }
+                }
+
+                // --- A10 ノード取得 (scene_51glb 内前提) ---
+                if (全パーツ名.includes(child.name)) {
+                    const originalQuat = child.quaternion.clone();
+                    child.quaternion.set(0, 0, 0, 1);
+                    アニメーション対象パーツ.push({
+                        mesh: child,
+                        name: child.name,
+                        type: ハッチ名一覧.includes(child.name) ? 'HATCH' : 'GEAR',
+                        initQuat: originalQuat,
+                        startQuat: new THREE.Quaternion(0, 0, 0, 1)
+                    });
+                }
+                if (child.name === 'キャノピー' && (!scene61Group || !child.ancestors?.includes(scene61Group))) {
+                    キャノピーオブジェクト = child;
+                    キャノピーInitQuat.copy(child.quaternion);
+                    child.quaternion.set(0, 0, 0, 1);
+                    キャノピーStartQuat.set(0, 0, 0, 1);
+                }
+                if (child.name === 'エルロン左') エルロン左 = child;
+                if (child.name === 'エルロン右') エルロン右 = child;
+                if (child.name === '昇降舵左') 昇降舵左 = child;
+                if (child.name === '昇降舵右') 昇降舵右 = child;
+                if (child.name === '方向舵左') 方向舵左 = child;
+                if (child.name === '方向舵右') 方向舵右 = child;
+
+                if (child.name === 'スロットル右') {
+                    スロットル右 = child;
+                    スロットル右_InitPos.copy(child.position);
+                }
+                if (child.name === 'スロットル左') {
+                    スロットル左 = child;
+                    スロットル左_InitPos.copy(child.position);
+                }
+                if (child.name === 'エンジン右') エンジン右 = child;
+                if (child.name === 'エンジン左') エンジン左 = child;
+                if (child.name === '操縦桿') 操縦桿 = child;
+
+                // --- F16 ノード取得 (scene_61glb + ボーン名 / scene_61glb内パーツ) ---
+                if (isF16Part(child, '左-エルロン')) f16_左エルロン = child;
+                if (isF16Part(child, '右-エルロン')) f16_右エルロン = child;
+                if (isF16Part(child, '左-水平尾翼')) f16_左水平尾翼 = child;
+                if (isF16Part(child, '右-水平尾翼')) f16_右水平尾翼 = child;
+                if (isF16Part(child, '前-操縦桿')) f16_前操縦桿 = child;
+                if (isF16Part(child, '後-操縦桿')) f16_後操縦桿 = child;
+
+                // F16 キャノピー: キャノピー_1 に変更
+                if (isF16Part(child, 'キャノピー_1')) {
+                    f16_キャノピー = child;
+                    f16_キャノピーInitQuat.copy(child.quaternion);
+                }
+
+                // F16 脚・扉 (グループ名+ボーン名 対応)
+                const f16GearNames = [
+                    '前脚収納A', '左-後脚収納', '右-後脚収納',
+                    '前脚角度', '右-後脚角度', '左-後脚角度',
+                    '右-降着装置扉', '前-降着装置扉', '左-降着装置'
+                ];
+
+                f16GearNames.forEach(bName => {
+                    if (isF16Part(child, bName)) {
+                        const initQ = child.quaternion.clone();
+                        f16GearParts.push({
+                            mesh: child,
+                            name: bName,
+                            initQuat: initQ,
+                            startQuat: new THREE.Quaternion(0, 0, 0, 1)
+                        });
+
+                        if (bName === '前脚収納A') f16_前脚収納A = child;
+                        if (bName === '左-後脚収納') f16_左後脚収納 = child;
+                        if (bName === '右-後脚収納') f16_右後脚収納 = child;
+                        if (bName === '前脚角度') f16_前脚角度 = child;
+                        if (bName === '右-後脚角度') f16_右後脚角度 = child;
+                        if (bName === '左-後脚角度') f16_左後脚角度 = child;
+                        if (bName === '右-降着装置扉') f16_右降着装置扉 = child;
+                        if (bName === '前-降着装置扉') f16_前降着装置扉 = child;
+                        if (bName === '左-降着装置') f16_左降着装置 = child;
+                    }
+                });
+
+                if (child.name === 'GAU8') {
+                    GAU8_Obj = child;
+                }
+                for (let i = 0; i < bulletNames.length; i++) {
+                    if (child.name === bulletNames[i]) {
+                        WinMag_BaseObjs[i] = child;
+                    }
+                }
+
+                if (child.name === 'HUD') {
+                    HUDオブジェクト = child;
+                    HUDオブジェクト.material = new THREE.MeshBasicMaterial({
+                        map: hudTexture,
+                        transparent: true,
+                        opacity: 0.95,
+                        depthWrite: false,
+                        side: THREE.FrontSide
+                    });
+                }
+
+                if (child.name === 'HUD右') {
+                    HUD右オブジェクト = child;
+                    HUD右オブジェクト.material = new THREE.MeshBasicMaterial({
+                        map: hudTexture,
+                        transparent: true,
+                        opacity: 0.95,
+                        depthWrite: false,
+                        side: THREE.FrontSide
+                    });
+                    HUD右オブジェクト.visible = hudRight有効;
+                }
+
+                if (child.name === 'HMD左') {
+                    HMD左オブジェクト = child;
+                    HMD左オブジェクト.material = new THREE.MeshBasicMaterial({
+                        map: hmdLeftTexture,
+                        transparent: true,
+                        opacity: 0.95,
+                        depthWrite: false,
+                        side: THREE.FrontSide
+                    });
+                }
+
+                if (child.name === 'HMD右') {
+                    HMD右オブジェクト = child;
+                    HMD右オブジェクト.material = new THREE.MeshBasicMaterial({
+                        map: hmdRightTexture,
+                        transparent: true,
+                        opacity: 0.95,
+                        depthWrite: false,
+                        side: THREE.FrontSide
+                    });
+                }
+
+                if (child.name === 'HMD') {
+                    HMDオブジェクト = child;
+                    HMDオブジェクト.material = new THREE.MeshBasicMaterial({
+                        map: hmdLeftTexture,
+                        transparent: true,
+                        opacity: 0.95,
+                        depthWrite: false,
+                        side: THREE.FrontSide
+                    });
+                }
+
+                if (child.name === '左画面') {
+                    左画面オブジェクト = child;
+                    左画面オブジェクト.material = new THREE.MeshBasicMaterial({ map: leftTexture, side: THREE.FrontSide });
+                }
+                if (child.name === '右画面') {
+                    右画面オブジェクト = child;
+                    右画面オブジェクト.material = new THREE.MeshBasicMaterial({ map: rightTexture, side: THREE.FrontSide });
+                }
+            });
+
+            // ノード階層フォールバック検索
+            if (!scene61Group) {
+                scene61Group = modelNodeMap['scene_61glb'] || modelNodeMap['61'] || modelNodeMap['F16'] || modelNodeMap['f16'];
+            }
+            if (!scene51Group) {
+                scene51Group = modelNodeMap['scene_51glb'] || modelNodeMap['51'] || modelNodeMap['A10'] || modelNodeMap['a10'];
+            }
+
+            updateScreens();
+
+            const box = new THREE.Box3().setFromObject(現在のモデル);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            デフォルトカメラ.position.set(center.x, center.y - size.y * 0.2, center.z + size.z * 0.8);
+            デフォルトカメラ.lookAt(center.x, center.y, center.z);
+
+            initWeaponObjects();
+            applyWeaponVisibility();
+
+            // モデルロード後に機体選択ダイアログを表示
+            showAircraftSelectModal();
+        }
+
+        function カメラを切り替える(番号) {
+            if (!カメラリスト || カメラリスト.length === 0) return;
+            現在のカメラ番号 = (番号 % カメラリスト.length + カメラリスト.length) % カメラリスト.length;
+            const targetCam = カメラリスト[現在のカメラ番号];
+            if (targetCam && targetCam.isCamera) {
+                targetCam.rotation.order = 'YXZ';
+                アクティブカメラ = targetCam;
+                カメラの最適化(アクティブカメラ);
+            }
+        }
+
+        function アニメーション開始(新状態) {
+            if (selectedAircraftMode !== 'A10') return;
+            アニメーション状態 = 新状態;
+            アニメーション開始時間 = performance.now();
+            アニメーション対象パーツ.forEach(p => {
+                p.startQuat.copy(p.mesh.quaternion);
+            });
+        }
+
+        function キャノピーアニメーション開始(新状態) {
+            if (selectedAircraftMode !== 'A10' || !キャノピーオブジェクト) return;
+            キャノピーアニメーション状態 = 新状態;
+            キャノピー開始時間 = performance.now();
+            キャノピーStartQuat.copy(キャノピーオブジェクト.quaternion);
+        }
+
+        function f16_GearAnimStart(newState) {
+            if (selectedAircraftMode !== 'F16') return;
+            f16_GearAnimState = newState;
+            f16_GearAnimStartTime = performance.now();
+            f16GearParts.forEach(p => {
+                p.startQuat.copy(p.mesh.quaternion);
+            });
+        }
+
+        function f16_CanopyAnimStart(newState) {
+            if (selectedAircraftMode !== 'F16' || !f16_キャノピー) return;
+            f16_キャノピーState = newState;
+            f16_キャノピーStartTime = performance.now();
+            f16_キャノピーStartQuat.copy(f16_キャノピー.quaternion);
+        }
+
+        // キーイベント
+        window.addEventListener('keydown', (イベント) => {
+            initAudio();
+
+            // Cキーでカメラ切り替え
+            if (イベント.key === 'c' || イベント.key === 'C') {
+                if (カメラリスト.length > 1) {
+                    カメラを切り替える(現在のカメラ番号 + 1);
+                }
+                return;
+            }
+
+            if (selectedAircraftMode === 'F16') {
+                // F16用 ギミック制御 (G / V)
+                if (イベント.key === 'g' || イベント.key === 'G') {
+                    if (f16_GearAnimState === 'OPEN') {
+                        f16_GearAnimStart('CLOSING_GEAR');
+                    } else if (f16_GearAnimState === 'STOPPED') {
+                        f16_GearAnimStart('OPENING_DOORS');
+                    }
+                    return;
+                }
+
+                if (イベント.key === 'v' || イベント.key === 'V') {
+                    if (f16_キャノピーState === 'OPEN') {
+                        f16_CanopyAnimStart('CLOSING');
+                    } else if (f16_キャノピーState === 'STOPPED') {
+                        f16_CanopyAnimStart('OPENING');
+                    }
+                    return;
+                }
+            }
+
+            if (selectedAircraftMode === 'A10') {
+                if (イベント.key === 'g' || イベント.key === 'G') {
+                    if (アニメーション状態 === 'STOPPED') {
+                        アニメーション開始('OPENING_HATCH');
+                    } else if (アニメーション状態 === 'OPEN') {
+                        アニメーション開始('CLOSING_GEAR');
+                    }
+                    return;
+                }
+
+                if (イベント.key === 'v' || イベント.key === 'V') {
+                    if (キャノピーアニメーション状態 === 'STOPPED') {
+                        キャノピーアニメーション開始('OPENING');
+                    } else if (キャノピーアニメーション状態 === 'OPEN') {
+                        キャノピーアニメーション開始('CLOSING');
+                    }
+                    return;
+                }
+
+                if (イベント.key === '@' || イベント.code === 'KeyAt' || イベント.code === 'BracketLeft') {
+                    handleWeaponSelectionMenu();
+                    return;
+                }
+
+                if (武装選択モード有効) {
+                    if (イベント.key === '1' || イベント.code === 'Digit1') setWeaponForSelectedPylon('OFF');
+                    if (イベント.key === '2' || イベント.code === 'Digit2') setWeaponForSelectedPylon('Mk84_LD');
+                    if (イベント.key === '3' || イベント.code === 'Digit3') setWeaponForSelectedPylon('AIM-54');
+                    if (イベント.key === '4' || イベント.code === 'Digit4') setWeaponForSelectedPylon('AAM-3');
+                    return;
+                }
+
+                if (イベント.key === 'o' || イベント.key === 'O' || イベント.code === 'KeyO') {
+                    左画面モード = (左画面モード + 1) % 6;
+                    return;
+                }
+
+                if (イベント.key === 'p' || イベント.key === 'P' || イベント.code === 'KeyP') {
+                    右画面モード = (右画面モード + 1) % 6;
+                    return;
+                }
+
+                if (イベント.key === 'z' || イベント.key === 'Z' || イベント.code === 'KeyZ') {
+                    hmd有効 = !hmd有効;
+                    return;
+                }
+
+                if (イベント.key === 'x' || イベント.key === 'X' || イベント.code === 'KeyX') {
+                    hudRight有効 = !hudRight有効;
+                    if (HUD右オブジェクト) {
+                        HUD右オブジェクト.visible = hudRight有効;
+                    }
+                    return;
+                }
+
+                if (イベント.code === 'ShiftLeft') { キー入力状態.ShiftLeft = true; playGunAudio(); }
+                if (イベント.code === 'ShiftRight') { キー入力状態.ShiftRight = true; playGunAudio(); }
+            }
+
+            if (イベント.code === 'KeyA') キー入力状態.KeyA = true;
+            if (イベント.code === 'KeyD') キー入力状態.KeyD = true;
+            if (イベント.code === 'KeyW') キー入力状態.KeyW = true;
+            if (イベント.code === 'KeyS') キー入力状態.KeyS = true;
+
+            if (イベント.code === 'KeyQ') キー入力状態.KeyQ = true;
+            if (イベント.code === 'KeyE') キー入力状態.KeyE = true;
+
+            if (イベント.key === '<' || イベント.key === ',' || イベント.code === 'Comma') キー入力状態.RudderLeft = true;
+            if (イベント.key === '>' || イベント.key === '.' || イベント.code === 'Period') キー入力状態.RudderRight = true;
+
+            if (イベント.key === 'ArrowUp') キー入力状態.ArrowUp = true;
+            if (イベント.key === 'ArrowDown') キー入力状態.ArrowDown = true;
+            if (イベント.key === 'ArrowLeft') キー入力状態.ArrowLeft = true;
+            if (イベント.key === 'ArrowRight') キー入力状態.ArrowRight = true;
+
+            if (イベント.key.startsWith('Arrow')) {
+                イベント.preventDefault(); 
+            }
+        });
+
+        window.addEventListener('keyup', (イベント) => {
+            if (イベント.code === 'ShiftLeft') {
+                キー入力状態.ShiftLeft = false;
+                if (!キー入力状態.ShiftRight) stopGunAudio();
+            }
+            if (イベント.code === 'ShiftRight') {
+                キー入力状態.ShiftRight = false;
+                if (!キー入力状態.ShiftLeft) stopGunAudio();
+            }
+
+            if (イベント.code === 'KeyA') キー入力状態.KeyA = false;
+            if (イベント.code === 'KeyD') キー入力状態.KeyD = false;
+            if (イベント.code === 'KeyW') キー入力状態.KeyW = false;
+            if (イベント.code === 'KeyS') キー入力状態.KeyS = false;
+
+            if (イベント.code === 'KeyQ') キー入力状態.KeyQ = false;
+            if (イベント.code === 'KeyE') キー入力状態.KeyE = false;
+
+            if (イベント.key === '<' || イベント.key === ',' || イベント.code === 'Comma') キー入力状態.RudderLeft = false;
+            if (イベント.key === '>' || イベント.key === '.' || イベント.code === 'Period') キー入力状態.RudderRight = false;
+
+            if (イベント.key === 'ArrowUp') キー入力状態.ArrowUp = false;
+            if (イベント.key === 'ArrowDown') キー入力状態.ArrowDown = false;
+            if (イベント.key === 'ArrowLeft') キー入力状態.ArrowLeft = false;
+            if (イベント.key === 'ArrowRight') キー入力状態.ArrowRight = false;
+        });
+
+        const カメラ回転速度 = 0.025; 
+
+        function アニメーション実行() {
+            requestAnimationFrame(アニメーション実行);
+
+            const 現在時刻 = performance.now();
+
+            if (現在時刻 - lastScreenUpdateTime > 100) {
+                lastScreenUpdateTime = 現在時刻;
+                updateScreens();
+            }
+
+            // テレメトリ送受信 (全ノードを網羅・完全同期)
+            if (activeConn && activeConn.open) {
+                if (現在時刻 - lastTelemetryTime > 30) {
+                    lastTelemetryTime = 現在時刻;
+                    let nodeTransforms = null;
+
+                    if (現在のモデル) {
+                        for (let name in modelNodeMap) {
+                            const child = modelNodeMap[name];
+                            const p = child.position;
+                            const q = child.quaternion;
+                            const s = child.scale;
+                            const v = child.visible;
+                            
+                            let last = nodeLastState[name];
+                            if (!last) {
+                                nodeLastState[name] = { 
+                                    x: p.x, y: p.y, z: p.z, 
+                                    qx: q.x, qy: q.y, qz: q.z, qw: q.w, 
+                                    sx: s.x, sy: s.y, sz: s.z,
+                                    v: v 
+                                };
+                                if (!nodeTransforms) nodeTransforms = {};
+                                nodeTransforms[name] = {
+                                    p: { x: p.x, y: p.y, z: p.z },
+                                    q: { x: q.x, y: q.y, z: q.z, w: q.w },
+                                    s: { x: s.x, y: s.y, z: s.z },
+                                    v: v
+                                };
+                            } else if (
+                                Math.abs(last.x - p.x) > 0.0001 ||
+                                Math.abs(last.y - p.y) > 0.0001 ||
+                                Math.abs(last.z - p.z) > 0.0001 ||
+                                Math.abs(last.qx - q.x) > 0.0001 ||
+                                Math.abs(last.qy - q.y) > 0.0001 ||
+                                Math.abs(last.qz - q.z) > 0.0001 ||
+                                Math.abs(last.qw - q.w) > 0.0001 ||
+                                Math.abs(last.sx - s.x) > 0.0001 ||
+                                Math.abs(last.sy - s.y) > 0.0001 ||
+                                Math.abs(last.sz - s.z) > 0.0001 ||
+                                last.v !== v
+                            ) {
+                                last.x = p.x; last.y = p.y; last.z = p.z;
+                                last.qx = q.x; last.qy = q.y; last.qz = q.z; last.qw = q.w;
+                                last.sx = s.x; last.sy = s.y; last.sz = s.z;
+                                last.v = v;
+                                if (!nodeTransforms) nodeTransforms = {};
+                                nodeTransforms[name] = {
+                                    p: { x: p.x, y: p.y, z: p.z },
+                                    q: { x: q.x, y: q.y, z: q.z, w: q.w },
+                                    s: { x: s.x, y: s.y, z: s.z },
+                                    v: v
+                                };
+                            }
+                        }
+                    }
+
+                    if (nodeTransforms) {
+                        activeConn.send({
+                            type: 'telemetry',
+                            nodes: nodeTransforms
+                        });
+                    }
+                }
+            }
+
+            // --- 機体操作ロジック ---
+            if (selectedAircraftMode === 'F16' && scene61Group) {
+                // 【F-16 (scene_61glb)】 ギミック操作
+
+                // A / D : エルロン制御 (Dで 左-エルロン +X, 右-エルロン -X / Aは逆)
+                if (キー入力状態.KeyD) {
+                    f16_エルロン角度 = Math.min(f16_エルロン角度 + 舵面移動速度, F16_最大舵角);
+                } else if (キー入力状態.KeyA) {
+                    f16_エルロン角度 = Math.max(f16_エルロン角度 - 舵面移動速度, -F16_最大舵角);
+                } else {
+                    if (f16_エルロン角度 > 0) f16_エルロン角度 = Math.max(0, f16_エルロン角度 - 舵面移動速度);
+                    if (f16_エルロン角度 < 0) f16_エルロン角度 = Math.min(0, f16_エルロン角度 + 舵面移動速度);
+                }
+
+                if (f16_左エルロン) f16_左エルロン.rotation.x = f16_エルロン角度;
+                if (f16_右エルロン) f16_右エルロン.rotation.x = -f16_エルロン角度;
+
+                // W / S : 水平尾翼制御 (Wで -X, Sで +X)
+                if (キー入力状態.KeyS) {
+                    f16_昇降舵角度 = Math.min(f16_昇降舵角度 + 舵面移動速度, F16_最大舵角);
+                } else if (キー入力状態.KeyW) {
+                    f16_昇降舵角度 = Math.max(f16_昇降舵角度 - 舵面移動速度, -F16_最大舵角);
+                } else {
+                    if (f16_昇降舵角度 > 0) f16_昇降舵角度 = Math.max(0, f16_昇降舵角度 - 舵面移動速度);
+                    if (f16_昇降舵角度 < 0) f16_昇降舵角度 = Math.min(0, f16_昇降舵角度 + 舵面移動速度);
+                }
+
+                if (f16_左水平尾翼) f16_左水平尾翼.rotation.x = f16_昇降舵角度;
+                if (f16_右水平尾翼) f16_右水平尾翼.rotation.x = f16_昇降舵角度;
+
+                // WASD: 前-操縦桿, 後-操縦桿 動翼連動
+                if (f16_前操縦桿) {
+                    f16_前操縦桿.rotation.x = f16_昇降舵角度;
+                    f16_前操縦桿.rotation.z = f16_エルロン角度;
+                }
+                if (f16_後操縦桿) {
+                    f16_後操縦桿.rotation.x = f16_昇降舵角度;
+                    f16_後操縦桿.rotation.z = f16_エルロン角度;
+                }
+
+                // Gキー: 脚・降着装置・扉 アニメーション制御
+                if (f16_GearAnimState !== 'OPEN' && f16_GearAnimState !== 'STOPPED') {
+                    let 経過 = (現在時刻 - f16_GearAnimStartTime) / 1000;
+
+                    if (f16_GearAnimState === 'CLOSING_GEAR') {
+                        // ステップ1: 前脚収納A, 左-後脚収納, 右-後脚収納 & 前脚角度, 右-後脚角度, 左-後脚角度 -> XYZ 0°
+                        let progress = Math.min(経過 / 3.0, 1.0);
+                        const gearList = [f16_前脚収納A, f16_左後脚収納, f16_右後脚収納, f16_前脚角度, f16_右後脚角度, f16_左後脚角度];
+                        gearList.forEach(item => {
+                            if (item) {
+                                const targetP = f16GearParts.find(p => p.mesh === item);
+                                if (targetP) item.quaternion.slerpQuaternions(targetP.startQuat, ゼロ回転, progress);
+                            }
+                        });
+
+                        if (progress >= 1.0) {
+                            f16_GearAnimStart('CLOSING_DOORS');
+                        }
+                    } else if (f16_GearAnimState === 'CLOSING_DOORS') {
+                        // ステップ2: 右-降着装置扉, 前-降着装置扉, 左-降着装置 -> XYZ 0°
+                        let progress = Math.min(経過 / 3.0, 1.0);
+                        const doorList = [f16_右降着装置扉, f16_前降着装置扉, f16_左降着装置];
+                        doorList.forEach(item => {
+                            if (item) {
+                                const targetP = f16GearParts.find(p => p.mesh === item);
+                                if (targetP) item.quaternion.slerpQuaternions(targetP.startQuat, ゼロ回転, progress);
+                            }
+                        });
+
+                        if (progress >= 1.0) {
+                            f16_GearAnimState = 'STOPPED';
+                        }
+                    } else if (f16_GearAnimState === 'OPENING_DOORS') {
+                        // 逆再生 ステップ1: 扉を元の角度に戻す
+                        let progress = Math.min(経過 / 3.0, 1.0);
+                        const doorList = [f16_右降着装置扉, f16_前降着装置扉, f16_左降着装置];
+                        doorList.forEach(item => {
+                            if (item) {
+                                const targetP = f16GearParts.find(p => p.mesh === item);
+                                if (targetP) item.quaternion.slerpQuaternions(targetP.startQuat, targetP.initQuat, progress);
+                            }
+                        });
+
+                        if (progress >= 1.0) {
+                            f16_GearAnimStart('OPENING_GEAR');
+                        }
+                    } else if (f16_GearAnimState === 'OPENING_GEAR') {
+                        // 逆再生 ステップ2: 脚を元の角度に戻す
+                        let progress = Math.min(経過 / 3.0, 1.0);
+                        const gearList = [f16_前脚収納A, f16_左後脚収納, f16_右後脚収納, f16_前脚角度, f16_右後脚角度, f16_左後脚角度];
+                        gearList.forEach(item => {
+                            if (item) {
+                                const targetP = f16GearParts.find(p => p.mesh === item);
+                                if (targetP) item.quaternion.slerpQuaternions(targetP.startQuat, targetP.initQuat, progress);
+                            }
+                        });
+
+                        if (progress >= 1.0) {
+                            f16_GearAnimState = 'OPEN';
+                        }
+                    }
+                }
+
+                // Vキー: キャノピー_1 アニメーション制御
+                if (f16_キャノピー && f16_キャノピーState !== 'OPEN' && f16_キャノピーState !== 'STOPPED') {
+                    let 経過 = (現在時刻 - f16_キャノピーStartTime) / 1000;
+                    let progress = Math.min(経過 / 3.0, 1.0);
+
+                    if (f16_キャノピーState === 'CLOSING') {
+                        f16_キャノピー.quaternion.slerpQuaternions(f16_キャノピーStartQuat, ゼロ回転, progress);
+                        if (progress >= 1.0) f16_キャノピーState = 'STOPPED';
+                    } else if (f16_キャノピーState === 'OPENING') {
+                        f16_キャノピー.quaternion.slerpQuaternions(f16_キャノピーStartQuat, f16_キャノピーInitQuat, progress);
+                        if (progress >= 1.0) f16_キャノピーState = 'OPEN';
+                    }
+                }
+
+            } else if (selectedAircraftMode === 'A10') {
+                // 【A-10 (scene_51glb)】操作制御および動的パーツ制御
+                if (scene51Group) {
+                    if (キー入力状態.KeyQ) スロットル量 = Math.min(1.0, スロットル量 + 0.015);
+                    if (キー入力状態.KeyE) スロットル量 = Math.max(0.0, スロットル量 - 0.015);
+
+                    if (スロットル右) スロットル右.position.z = スロットル右_InitPos.z + (最大スロットル移動量 * スロットル量);
+                    if (スロットル左) スロットル左.position.z = スロットル左_InitPos.z + (最大スロットル移動量 * スロットル量);
+
+                    const エンジン回転速度 = 0.05 + (スロットル量 * 0.45);
+                    if (エンジン右) エンジン右.rotation.z += エンジン回転速度;
+                    if (エンジン左) エンジン左.rotation.z += エンジン回転速度;
+
+                    if (キー入力状態.KeyA) {
+                        エルロン角度 = Math.min(エルロン角度 + 舵面移動速度, A10C_最大舵角);
+                    } else if (キー入力状態.KeyD) {
+                        エルロン角度 = Math.max(エルロン角度 - 舵面移動速度, -A10C_最大舵角);
+                    } else {
+                        if (エルロン角度 > 0) エルロン角度 = Math.max(0, エルロン角度 - 舵面移動速度);
+                        if (エルロン角度 < 0) エルロン角度 = Math.min(0, エルロン角度 + 舵面移動速度);
+                    }
+
+                    if (エルロン左) エルロン左.rotation.x = エルロン角度;
+                    if (エルロン右) エルロン右.rotation.x = -エルロン角度;
+
+                    if (キー入力状態.KeyS) {
+                        昇降舵角度 = Math.min(昇降舵角度 + 舵面移動速度, A10C_最大舵角);
+                    } else if (キー入力状態.KeyW) {
+                        昇降舵角度 = Math.max(昇降舵角度 - 舵面移動速度, -A10C_最大舵角);
+                    } else {
+                        if (昇降舵角度 > 0) 昇降舵角度 = Math.max(0, 昇降舵角度 - 舵面移動速度);
+                        if (昇降舵角度 < 0) 昇降舵角度 = Math.min(0, 昇降舵角度 + 舵面移動速度);
+                    }
+
+                    if (昇降舵左) 昇降舵左.rotation.x = 昇降舵角度;
+                    if (昇降舵右) 昇降舵右.rotation.x = 昇降舵角度;
+
+                    if (操縦桿) {
+                        操縦桿.rotation.x = -(昇降舵角度 / A10C_最大舵角) * 操縦桿_最大角度;
+                        操縦桿.rotation.z = (エルロン角度 / A10C_最大舵角) * 操縦桿_最大角度;
+                    }
+
+                    if (キー入力状態.RudderLeft) {
+                        方向舵角度 = Math.max(方向舵角度 - 舵面移動速度, -A10C_最大舵角);
+                    } else if (キー入力状態.RudderRight) {
+                        方向舵角度 = Math.min(方向舵角度 + 舵面移動速度, A10C_最大舵角);
+                    } else {
+                        if (方向舵角度 > 0) 方向舵角度 = Math.max(0, 方向舵角度 - 舵面移動速度);
+                        if (方向舵角度 < 0) 方向舵角度 = Math.min(0, 方向舵角度 + 舵面移動速度);
+                    }
+
+                    if (方向舵左) 方向舵左.rotation.y = 方向舵角度;
+                    if (方向舵右) 方向舵右.rotation.y = 方向舵角度;
+
+                    // GAU8 射撃
+                    const currGauPos = new THREE.Vector3();
+                    if (GAU8_Obj) {
+                        GAU8_Obj.getWorldPosition(currGauPos);
+                    } else if (現在のモデル) {
+                        現在のモデル.getWorldPosition(currGauPos);
+                    }
+
+                    if (isFirstFramePos) {
+                        prevGauPos.copy(currGauPos);
+                        gauVelocity.set(0, 0, 0);
+                        isFirstFramePos = false;
+                    } else {
+                        gauVelocity.subVectors(currGauPos, prevGauPos);
+                        prevGauPos.copy(currGauPos);
+                    }
+
+                    const isFiring = キー入力状態.ShiftLeft || キー入力状態.ShiftRight;
+                    if (isFiring) {
+                        if (GAU8_Obj) {
+                            GAU8_Obj.rotation.z += 0.8;
+                        }
+
+                        if (現在時刻 - lastFireTime > FIRE_INTERVAL) {
+                            lastFireTime = 現在時刻;
+                            
+                            let baseObj = null;
+                            for (let step = 0; step < 7; step++) {
+                                let idx = (currentBulletIndex + step) % 7;
+                                if (WinMag_BaseObjs[idx]) {
+                                    baseObj = WinMag_BaseObjs[idx];
+                                    currentBulletIndex = (idx + 1) % 7;
+                                    break;
+                                }
+                            }
+
+                            const spawnPos = new THREE.Vector3();
+                            if (baseObj) {
+                                baseObj.updateMatrixWorld(true);
+                                baseObj.getWorldPosition(spawnPos);
+                            } else {
+                                spawnPos.copy(currGauPos);
+                            }
+
+                            const bulletDir = new THREE.Vector3(0, 0, -1);
+                            const modelQuat = new THREE.Quaternion();
+                            if (scene51Group) {
+                                scene51Group.getWorldQuaternion(modelQuat);
+                                bulletDir.applyQuaternion(modelQuat).normalize();
+                            }
+
+                            const velocityVector = bulletDir.multiplyScalar(BULLET_SPEED).add(gauVelocity);
+
+                            const bulletMesh = new THREE.Mesh(bulletGeo, bulletMat);
+                            bulletMesh.position.copy(spawnPos);
+                            bulletMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), velocityVector.clone().normalize());
+
+                            シーン.add(bulletMesh);
+                            activeBullets.push({
+                                mesh: bulletMesh,
+                                velocity: velocityVector,
+                                spawnTime: 現在時刻
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 弾頭更新
+            for (let i = activeBullets.length - 1; i >= 0; i--) {
+                const b = activeBullets[i];
+                b.mesh.position.add(b.velocity);
+
+                if (現在時刻 - b.spawnTime > 2500) {
+                    シーン.remove(b.mesh);
+                    activeBullets.splice(i, 1);
+                }
+            }
+
+            // A10 脚・ハッチアニメーション
+            if (selectedAircraftMode === 'A10' && アニメーション状態 !== 'STOPPED' && アニメーション状態 !== 'OPEN') {
+                let 経過時間 = (現在時刻 - アニメーション開始時間) / 1000;
+
+                if (アニメーション状態 === 'OPENING_HATCH') {
+                    let 進行度 = Math.min(経過時間 / 4.0, 1.0);
+                    アニメーション対象パーツ.filter(p => p.type === 'HATCH').forEach(p => {
+                        p.mesh.quaternion.slerpQuaternions(p.startQuat, ゼロ回転, 進行度);
+                    });
+                    if (進行度 >= 1.0) {
+                        アニメーション開始('OPENING_GEAR');
+                    }
+                } else if (アニメーション状態 === 'OPENING_GEAR') {
+                    let 進行度 = Math.min(経過時間 / 5.0, 1.0);
+                    アニメーション対象パーツ.filter(p => p.type === 'GEAR').forEach(p => {
+                        p.mesh.quaternion.slerpQuaternions(p.startQuat, ゼロ回転, 進行度);
+                    });
+                    if (進行度 >= 1.0) {
+                        アニメーション状態 = 'OPEN';
+                    }
+                } else if (アニメーション状態 === 'CLOSING_GEAR') {
+                    let 進行度 = Math.min(経過時間 / 5.0, 1.0);
+                    アニメーション対象パーツ.filter(p => p.type === 'GEAR').forEach(p => {
+                        p.mesh.quaternion.slerpQuaternions(p.startQuat, p.initQuat, 進行度);
+                    });
+                    if (進行度 >= 1.0) {
+                        アニメーション開始('CLOSING_HATCH');
+                    }
+                } else if (アニメーション状態 === 'CLOSING_HATCH') {
+                    let 進行度 = Math.min(経過時間 / 4.0, 1.0);
+                    アニメーション対象パーツ.filter(p => p.type === 'HATCH').forEach(p => {
+                        p.mesh.quaternion.slerpQuaternions(p.startQuat, p.initQuat, 進行度);
+                    });
+                    if (進行度 >= 1.0) {
+                        アニメーション状態 = 'STOPPED';
+                    }
+                }
+            }
+
+            // A10 キャノピーアニメーション
+            if (selectedAircraftMode === 'A10' && キャノピーオブジェクト && キャノピーアニメーション状態 !== 'STOPPED' && キャノピーアニメーション状態 !== 'OPEN') {
+                let 経過時間 = (現在時刻 - キャノピー開始時間) / 1000;
+
+                if (キャノピーアニメーション状態 === 'OPENING') {
+                    let 進行度 = Math.min(経過時間 / 4.0, 1.0);
+                    キャノピーオブジェクト.quaternion.slerpQuaternions(キャノピーStartQuat, ゼロ回転, 進行度);
+                    if (進行度 >= 1.0) {
+                        キャノピーアニメーション状態 = 'OPEN';
+                    }
+                } else if (キャノピーアニメーション状態 === 'CLOSING') {
+                    let 進行度 = Math.min(経過時間 / 4.0, 1.0);
+                    キャノピーオブジェクト.quaternion.slerpQuaternions(キャノピーStartQuat, キャノピーInitQuat, 進行度);
+                    if (進行度 >= 1.0) {
+                        キャノピーアニメーション状態 = 'STOPPED';
+                    }
+                }
+            }
+
+            // 矢印キー カメラ視点操作
+            if (アクティブカメラ && アクティブカメラ.isCamera) {
+                if (キー入力状態.ArrowUp) アクティブカメラ.rotateX(カメラ回転速度);
+                if (キー入力状態.ArrowDown) アクティブカメラ.rotateX(-カメラ回転速度);
+                if (キー入力状態.ArrowLeft) アクティブカメラ.rotateOnWorldAxis(_worldY, カメラ回転速度);
+                if (キー入力状態.ArrowRight) アクティブカメラ.rotateOnWorldAxis(_worldY, -カメラ回転速度);
+            }
+
+            if (アクティブカメラ && アクティブカメラ.isCamera) {
+                レンダラー.render(シーン, アクティブカメラ);
+            }
+        }
+        アニメーション実行();
+
+        window.addEventListener('resize', () => {
+            レンダラー.setSize(window.innerWidth, window.innerHeight);
+            カメラリスト.forEach(カメラ => { if (カメラ && カメラ.isCamera) カメラの最適化(カメラ); });
+        });
+
+        // パイロン武装管理
+        let 武装オブジェクトマップ = {};
+        let パイロン武装状態 = {
+            "パイロン01": "OFF", "パイロン02": "OFF", "パイロン03": "OFF", "パイロン04": "OFF", "パイロン05": "OFF",
+            "パイロン06": "OFF", "パイロン07": "OFF", "パイロン08": "OFF", "パイロン09": "OFF", "パイロン10": "OFF", "パイロン11": "OFF",
+            "AAM右側_右": "OFF", "AAM右側_左": "OFF"
+        };
+
+        let 武装選択モード有効 = false;
+        let 選択中パイロンインデックス = -1;
+        const パイロン名リスト = [
+            "パイロン01", "パイロン02", "パイロン03", "パイロン04", "パイロン05",
+            "パイロン06", "パイロン07", "パイロン08", "パイロン09", "パイロン10", "パイロン11",
+            "AAM右側_右", "AAM右側_左"
+        ];
+
+        function getPylonWeaponIndex(pylonIndex) {
+            return 10 - pylonIndex;
+        }
+
+        function initWeaponObjects() {
+            武装オブジェクトマップ = {};
+            if (!現在のモデル) return;
+
+            現在のモデル.traverse((obj) => {
+                const name = obj.name;
+                const targetPatterns = [
+                    /^Mk84_LD([1-9]|10)$/,
+                    /^AIM-54([1-9]|10)$/,
+                    /^AIM-541$/, /^AIM-542$/, /^AIM-543$/, /^AIM-544$/, /^AIM-545$/, /^AIM-546$/, /^AIM-547$/, /^AIM-548$/, /^AIM-549$/, /^AIM-5410$/,
+                    /^AAM-3_PTM1$/, /^AAM-3_PTM2$/, /^AAM-3_PMT1$/, /^AAM-3_PMT2$/
+                ];
+
+                const isTarget = targetPatterns.some(pattern => pattern.test(name));
+                if (isTarget) {
+                    obj.visible = false;
+                    武装オブジェクトマップ[name] = obj;
+                }
+            });
+        }
+
+        function applyWeaponVisibility() {
+            if (!現在のモデル) return;
+
+            Object.keys(武装オブジェクトマップ).forEach(name => {
+                武装オブジェクトマップ[name].visible = false;
+            });
+
+            for (let idx = 0; idx < 10; idx++) {
+                const pylonName = パイロン名リスト[idx];
+                const num = getPylonWeaponIndex(idx);
+                const selectedType = パイロン武装状態[pylonName];
+
+                if (selectedType === "Mk84_LD") {
+                    const targetName = `Mk84_LD${num}`;
+                    if (武装オブジェクトマップ[targetName]) 武装オブジェクトマップ[targetName].visible = true;
+                } else if (selectedType === "AIM-54") {
+                    const targetName = `AIM-54${num}`;
+                    if (武装オブジェクトマップ[targetName]) 武装オブジェクトマップ[targetName].visible = true;
+                }
+            }
+
+            if (パイロン武装状態["AAM右側_右"] === "AAM-3") {
+                if (武装オブジェクトマップ["AAM-3_PTM1"]) 武装オブジェクトマップ["AAM-3_PTM1"].visible = true;
+                if (武装オブジェクトマップ["AAM-3_PMT1"]) 武装オブジェクトマップ["AAM-3_PMT1"].visible = true;
+            }
+            if (パイロン武装状態["AAM右側_左"] === "AAM-3") {
+                if (武装オブジェクトマップ["AAM-3_PTM2"]) 武装オブジェクトマップ["AAM-3_PTM2"].visible = true;
+                if (武装オブジェクトマップ["AAM-3_PMT2"]) 武装オブジェクトマップ["AAM-3_PMT2"].visible = true;
+            }
+        }
+
+        function handleWeaponSelectionMenu() {
+            if (!武装選択モード有効) {
+                武装選択モード有効 = true;
+                選択中パイロンインデックス = 0;
+            } else {
+                選択中パイロンインデックス++;
+                if (選択中パイロンインデックス >= パイロン名リスト.length) {
+                    武装選択モード有効 = false;
+                    選択中パイロンインデックス = -1;
+                }
+            }
+            updateStatusText();
+            updateStoresUI();
+        }
+
+        function setWeaponForSelectedPylon(type) {
+            if (選択中パイロンインデックス < 0 || 選択中パイロンインデックス >= パイロン名リスト.length) return;
+
+            const pylonName = パイロン名リスト[選択中パイロンインデックス];
+            setWeaponForPylonByName(pylonName, type);
+        }
+
+        function setWeaponForPylonByName(pylonName, type) {
+            if ((pylonName !== "AAM右側_右" && pylonName !== "AAM右側_左") && type === "AAM-3") {
+                type = "OFF";
+            }
+            if ((pylonName === "AAM右側_右" || pylonName === "AAM右側_左") && (type === "Mk84_LD" || type === "AIM-54")) {
+                type = "OFF";
+            }
+
+            パイロン武装状態[pylonName] = type;
+
+            applyWeaponVisibility();
+            updateStatusText();
+            updateStoresUI();
+        }
+
+        function updateStatusText() {
+            const statusElem = document.getElementById('status');
+            if (!statusElem) return;
+
+            if (!selectedAircraftMode) {
+                statusElem.innerHTML = "ファイル選択後、搭乗機体を選択してください。";
+                return;
+            }
+
+            if (!武装選択モード有効) {
+                statusElem.innerHTML = `<b>【自機: ${selectedAircraftMode}】</b> 【C】カメラ切替 / 【矢印キー】カメラ視点移動` +
+                    (selectedAircraftMode === 'F16' ? ` / 【W/S】ピッチ / 【A/D】ロール / 【G】降着装置 / 【V】キャノピー` : ``) +
+                    (selectedAircraftMode === 'A10' ? ` / 【Q/E】スロットル / 【W/S】ピッチ / 【A/D】ロール / 【< / >】ヨー / 【G】脚ハッチ / 【V】キャノピー / 【@】武装選択 / 【Shift】GAU-8` : ``);
+            } else {
+                const currentPylon = パイロン名リスト[選択中パイロンインデックス];
+                const currentVal = パイロン武装状態[currentPylon];
+                statusElem.innerHTML = `<span style="color:red;">【武装選択モード】</span> [1:OFF / 2:Mk84 / 3:AIM-54 / 4:AAM-3]<br>` +
+                    `<b>選択中: ${currentPylon} (現在: ${currentVal})</b> | 次のパイロン選択・決定: 【@】`;
+            }
+        }
+
+        const storesUI = document.getElementById('stores-monitor-ui');
+        const pylonContainer = document.getElementById('pylon-list-container');
+        const closeStoresBtn = document.getElementById('close-stores-btn');
+
+        function createStoresUIElements() {
+            pylonContainer.innerHTML = '';
+            パイロン名リスト.forEach((pylonName) => {
+                const row = document.createElement('div');
+                row.className = 'pylon-row';
+
+                const label = document.createElement('span');
+                label.className = 'pylon-label';
+                label.innerText = `${pylonName}:`;
+
+                const select = document.createElement('select');
+                select.className = 'pylon-select';
+                select.id = `select-${pylonName}`;
+
+                let options = [{ value: "OFF", label: "未搭載" }];
+                
+                if (pylonName === "AAM右側_右" || pylonName === "AAM右側_左") {
+                    options.push({ value: "AAM-3", label: "AAM-3" });
+                } else {
+                    options.push({ value: "Mk84_LD", label: "Mk84_LD" });
+                    options.push({ value: "AIM-54", label: "AIM-54" });
+                }
+
+                options.forEach(opt => {
+                    const optElem = document.createElement('option');
+                    optElem.value = opt.value;
+                    optElem.innerText = opt.label;
+                    select.appendChild(optElem);
+                });
+
+                select.addEventListener('change', (e) => {
+                    setWeaponForPylonByName(pylonName, e.target.value);
+                });
+
+                row.appendChild(label);
+                row.appendChild(select);
+                pylonContainer.appendChild(row);
+            });
+        }
+
+        createStoresUIElements();
+
+        function updateStoresUI() {
+            if (武装選択モード有効) {
+                storesUI.style.display = 'block';
+            } else {
+                storesUI.style.display = 'none';
+            }
+
+            パイロン名リスト.forEach(pylonName => {
+                const select = document.getElementById(`select-${pylonName}`);
+                if (select) {
+                    select.value = パイロン武装状態[pylonName];
+                }
+            });
+        }
+
+        closeStoresBtn.addEventListener('click', () => {
+            武装選択モード有効 = false;
+            選択中パイロンインデックス = -1;
+            updateStatusText();
+            updateStoresUI();
+        });
+    </script>
+</body>
+</html>
